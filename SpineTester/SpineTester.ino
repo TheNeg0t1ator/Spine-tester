@@ -85,6 +85,7 @@
 
 #include <Wire.h>
 #include <rgb_lcd.h>
+#include "LCD.hpp"
 #include "HX711.h"
 #include <EEPROM.h>
 #include <avr/sleep.h>
@@ -108,8 +109,8 @@
 // globally by defining or undefining the constant DEBUGON 
 //
 #define DEBUGON
-#define FUNC                            __PRETTY_FUNCTION__
-//define FUNC                           __FUNCTION__
+//#define FUNC                            __PRETTY_FUNCTION__
+#define FUNC                           __FUNCTION__
 
 
 
@@ -570,23 +571,23 @@ void OnboardLEDControl::Blink (int Flashes)
 ********************************************************************************
 *******************************************************************************/
 
-rgb_lcd LCDLib;
+// rgb_lcd LCDLib;
 
-class LCDInterface 
-{
-    // rgb_lcd * LCDLib;
-  public:
-    LCDInterface (void);
-    void Clear (void);
-    void Clear (int Line);
-    void Line (const char * LCDString, ...);
-    void Line (int Line, const char * LCDString);
-    void Line (int Line, int IntData, const char * LCDString="");
-    void Line (int Line, long LongData, const char * LCDString="");
-    void Line  (int Line, float FloatData, const char * LCDString="");
-    void Off (void);
-    void On (void);
-    
+class LCDInterface {
+private:
+    LCD_Display LCDLib;
+
+public:
+    LCDInterface(void);
+    void Clear(void);
+    void Clear(int Line);
+    void Line(const char* LCDString, ...);
+    void Line(int Line, const char* LCDString);
+    void Line(int Line, int IntData, const char* LCDString = "");
+    void Line(int Line, long LongData, const char* LCDString = "");
+    void Line(int Line, float FloatData, const char* LCDString = "");
+    void Off(void);
+    void On(void);
 }; /* LCDInterface */
 
 
@@ -599,15 +600,10 @@ class LCDInterface
 *                                                                              *                                                                              *
 *******************************************************************************/
 
-LCDInterface::LCDInterface (void)
-{
-  // set up the LCD's number of columns and rows; clear it
-  LCDLib.begin (LCDCOLUMNS, LCDROWS);
-  LCDLib.setRGB (255, 255, 255);
-  LCDLib.clear ();
-
-  DEBUG (FUNC, "%i columns, %i rows", LCDCOLUMNS, LCDROWS);
-  
+LCDInterface::LCDInterface(void) {
+    LCDLib.init_display();
+    LCDLib.clear();
+    // DEBUG (FUNC, "%i columns, %i rows", LCDCOLUMNS, LCDROWS);
 } /* LCDInterface::LCDInterface */
 
 
@@ -620,13 +616,9 @@ LCDInterface::LCDInterface (void)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::Clear (void)
-{
-  // clear the LCD
-  LCDLib.clear ();
-  
-  DEBUG (FUNC);
-
+void LCDInterface::Clear(void) {
+    LCDLib.clear();
+    // DEBUG (FUNC);
 } /* LCDInterface::Clear */
 
 
@@ -639,13 +631,9 @@ void LCDInterface::Clear (void)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::Off (void)
-{
-  // turn off the LCD
-  LCDLib.noDisplay ();
-  
-  DEBUG (FUNC);
-
+void LCDInterface::Off(void) {
+    LCDLib.get_lcd().noBacklight();
+    // DEBUG (FUNC);
 } /* LCDInterface::Off */
 
 
@@ -658,13 +646,9 @@ void LCDInterface::Off (void)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::On (void)
-{
-  // turn on the LCD
-  LCDLib.display ();
-  
-  DEBUG (FUNC);
-
+void LCDInterface::On(void) {
+    LCDLib.get_lcd().backlight();
+    // DEBUG (FUNC);
 } /* LCDInterface::On */
 
 
@@ -677,17 +661,13 @@ void LCDInterface::On (void)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::Clear (int Line)
-{
-  // don't try to write off the bottom of the LCD
-  if (Line >= LCDROWS) return;
-  
-  // write LEDCOLUMNS spaces to the line
-  LCDLib.setCursor (0, Line);
-  for (int x = 0; x < LCDCOLUMNS; x++) LCDLib.print (' ');
+void LCDInterface::Clear(int Line) {
+    if (Line >= LCDROWS) return;
 
-  DEBUG (FUNC, "line %i", Line);
+    LCDLib.set_cursor(0, Line);
+    for (int x = 0; x < LCDCOLUMNS; x++) LCDLib.print(" ");
 
+    // DEBUG (FUNC, "line %i", Line);
 } /* LCDInterface::Clear */
 
 
@@ -701,71 +681,25 @@ void LCDInterface::Clear (int Line)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::Line (const char * LCDStringParam, ...)
-{
-  char LCDString [LCDROWS*(LCDCOLUMNS+1)];
-  char LCDWorkString [LCDROWS][LCDCOLUMNS+1];
-  int line;
-  int length;
-  va_list args;
-  char * StartPosition;
+void LCDInterface::Line(const char* LCDStringParam, ...) {
+    char LCDString[LCDROWS * (LCDCOLUMNS + 1)];
+    va_list args;
+    va_start(args, LCDStringParam);
+    vsnprintf(LCDString, sizeof(LCDString), LCDStringParam, args);
+    va_end(args);
 
-  DEBUG (FUNC, "\"%s\"", LCDStringParam);
-  
-  // clear the LCD; saves blanking bits of the LCD selectively later
-  LCDLib.clear ();
+    LCDLib.clear();
 
-  // return if there's nothing worth writing
-  if ((LCDStringParam == NULL) || (LCDStringParam [0]== '\0')) return;
+    if ((LCDStringParam == NULL) || (LCDStringParam[0] == '\0')) return;
 
-  // apply formatting (there may be none; if there isn't it'll be ok)
-  va_start (args, LCDStringParam);
-  vsnprintf (LCDString, sizeof (LCDString), LCDStringParam, args);
-  LCDString [sizeof (LCDString) - 1] = 0;
-  va_end (args);    
-
-  DEBUG (FUNC, "\"%s\"", LCDString);
-
-  // clear the work array
-  StartPosition = (char *) LCDString;
-  for (line = 0; line < LCDROWS; line++) LCDWorkString [line][0] = '\0';
-
-  // work through the lines of the work string array
-  for (line = 0; line < LCDROWS; line++) 
-  {
-    // step over white space till we find a character or a null
-    while ((*StartPosition != '\0') && (isspace (*StartPosition))) 
-      StartPosition++;
-
-    // if there are less than LCDCOLUMNS left, copy to the current line and stop
-    if (strlen (StartPosition) <= LCDCOLUMNS)
-    {
-      strcpy (LCDWorkString [line], StartPosition);
-      break;
+    for (int line = 0; line < LCDROWS; line++) {
+        LCDLib.set_cursor(0, line);
+        for (int i = 0; i < LCDCOLUMNS && LCDString[line * LCDCOLUMNS + i] != '\0'; i++) {
+            LCDLib.write(LCDString[line * LCDCOLUMNS + i]);
+        }
     }
 
-    // find a good end of line; start off at current position + LCDCOLUMNS and 
-    // look for a space, copy that many characters or LCDCOLUMNS worth if we 
-    // can't find one
-    for (length = LCDCOLUMNS; length > 0; length--)
-      if (isspace (StartPosition [length])) break;
-    if (length <= 0) length = LCDCOLUMNS;
-
-    // copy the characters and null terminate
-    strncpy (LCDWorkString [line], StartPosition, length);
-    LCDWorkString [line][length] = '\0';
-
-    StartPosition += length;
-  }
-  
-  // write the display lines, starting at column zero
-  for (line = 0; line < LCDROWS; line++) 
-  {
-    LCDLib.setCursor (0, line);
-    LCDLib.print (LCDWorkString [line]);
-    DEBUG (FUNC, "line %i, \"%s\"", line, LCDWorkString [line]);
-  }
-
+    // DEBUG (FUNC, "\"%s\"", LCDString);
 } /* LCDInterface::Line */
 
 
@@ -778,22 +712,15 @@ void LCDInterface::Line (const char * LCDStringParam, ...)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::Line (int Line, const char * LCDString)
-{
-  int CharsWritten; 
-  
-  // don't try to write off the bottom of the LCD
-  if (Line >= LCDROWS) return;
+void LCDInterface::Line(int Line, const char* LCDString) {
+    if (Line >= LCDROWS) return;
 
-  // write the display line, starting at column zero
-  LCDLib.setCursor (0, Line);
-  CharsWritten = LCDLib.print (LCDString); 
+    LCDLib.set_cursor(0, Line);
+    int CharsWritten = LCDLib.get_lcd().print(LCDString);
 
-  // blank off the end by writing spaces to the end of line
-  for (int x = CharsWritten; x < LCDCOLUMNS; x++) LCDLib.print (' ');
-  
-  DEBUG (FUNC, "line %i, \"%s\", chars written %i", Line, LCDString, CharsWritten);
+    for (int x = CharsWritten; x < LCDCOLUMNS; x++) LCDLib.print(" ");
 
+    // DEBUG (FUNC, "line %i, \"%s\", chars written %i", Line, LCDString, CharsWritten);
 } /* LCDInterface::Line */
 
 
@@ -807,23 +734,16 @@ void LCDInterface::Line (int Line, const char * LCDString)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::Line (int Line, int IntData, const char * LCDString)
-{
-  int CharsWritten; 
-  
-  // don't try to write off the bottom of the LCD
-  if (Line >= LCDROWS) return;
+void LCDInterface::Line(int Line, int IntData, const char* LCDString) {
+    if (Line >= LCDROWS) return;
 
-  // write the display line, starting at column zero
-  LCDLib.setCursor (0, Line);
-  CharsWritten = LCDLib.print (IntData); 
-  CharsWritten += LCDLib.print (LCDString); 
+    LCDLib.set_cursor(0, Line);
+    int CharsWritten = LCDLib.get_lcd().print(IntData);
+    CharsWritten += LCDLib.get_lcd().print(LCDString);
 
-  // blank off the end by writing spaces to the end of line
-  for (int x = CharsWritten; x < LCDCOLUMNS; x++) LCDLib.print (' ');
-  
-  DEBUG (FUNC, "line %i, %i \"%s\"", Line, IntData, LCDString);
+    for (int x = CharsWritten; x < LCDCOLUMNS; x++) LCDLib.print(" ");
 
+    // DEBUG (FUNC, "line %i, %i \"%s\"", Line, IntData, LCDString);
 } /* LCDInterface::Line (int, int, char *) */
 
 
@@ -837,23 +757,16 @@ void LCDInterface::Line (int Line, int IntData, const char * LCDString)
 *                                                                              *
 *******************************************************************************/
 
-void  LCDInterface::Line (int Line, long LongData, const char * LCDString)
-{
-  int CharsWritten; 
-  
-  // don't try to write off the bottom of the LCD
-  if (Line >= LCDROWS) return;
+void LCDInterface::Line(int Line, long LongData, const char* LCDString) {
+    if (Line >= LCDROWS) return;
 
-  // write the display line, starting at column zero
-  LCDLib.setCursor (0, Line);
-  CharsWritten = LCDLib.print (LongData); 
-  CharsWritten += LCDLib.print (LCDString); 
+    LCDLib.set_cursor(0, Line);
+    int CharsWritten = LCDLib.get_lcd().print(LongData);
+    CharsWritten += LCDLib.get_lcd().print(LCDString);
 
-  // blank off the end by writing spaces to the end of line
-  for (int x = CharsWritten; x < LCDCOLUMNS; x++) LCDLib.print (' ');
-  
-  DEBUG (FUNC, "line %i, \"%s\", %l", Line, LCDString, LongData);
+    for (int x = CharsWritten; x < LCDCOLUMNS; x++) LCDLib.print(" ");
 
+    // DEBUG (FUNC, "line %i, \"%s\", %l", Line, LCDString, LongData);
 } /* WriteLCDLineLong */
 
 
@@ -867,29 +780,19 @@ void  LCDInterface::Line (int Line, long LongData, const char * LCDString)
 *                                                                              *
 *******************************************************************************/
 
-void LCDInterface::Line  (int Line, float FloatData, const char * LCDString)
-{
-  char LCDStringInt [LCDCOLUMNS+1]; 
-  char LCDFloatString [LCDCOLUMNS+1]; 
-  int CharsWritten; 
-    
-  // don't try to write off the bottom of the LCD
-  if (Line >= LCDROWS) return;
+void LCDInterface::Line(int Line, float FloatData, const char* LCDString) {
+    if (Line >= LCDROWS) return;
 
-  // build the display line; make sure that it's null terminated
-  dtostrf(FloatData, 8, 4, LCDFloatString); //sprintf of float fails -workaround
-  trim (LCDFloatString);
+    char LCDFloatString[LCDCOLUMNS + 1];
+    dtostrf(FloatData, 8, 4, LCDFloatString);
 
-  // write the display line, starting at column zero
-  LCDLib.setCursor (0, Line);
-  CharsWritten = LCDLib.print (LCDFloatString); 
-  CharsWritten += LCDLib.print (LCDString); 
+    LCDLib.set_cursor(0, Line);
+    int CharsWritten = LCDLib.get_lcd().print(LCDFloatString);
+    CharsWritten += LCDLib.get_lcd().print(LCDString);
 
-  // blank off the end by writing spaces to the end of line
-  for (int x = strlen(LCDString); x < LCDCOLUMNS; x++) LCDLib.print (' ');
-  
-  DEBUG (FUNC, "%s, \"%s\"", LCDFloatString, LCDString);
+    for (int x = CharsWritten; x < LCDCOLUMNS; x++) LCDLib.print(" ");
 
+    // DEBUG (FUNC, "%s, \"%s\"", LCDFloatString, LCDString);
 } /* LCDInterface::Line (int, float, char *) */
 
 
