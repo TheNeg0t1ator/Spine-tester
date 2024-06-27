@@ -2394,7 +2394,9 @@ void setup()
   LCD->Line (0, ARROWSCALETITLE);
   LCD->Line (1, ARROWSCALEVERSION);
   delay(ARROWSCALEDELAY);
-  
+  LCD->Line (0, ARROWSCALETITLE);
+  LCD->Line (1, "Kobe Dieryck");
+  delay(ARROWSCALEDELAY);
   // Print another startup message identifying the builder if message exists
   #ifdef BUILDERMESSAGELINE1
     LCD->Line (0,BUILDERMESSAGELINE1);
